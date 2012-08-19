@@ -4,37 +4,42 @@
 
 package at.logic.parsing.language.xml
 
-import _root_.at.logic.calculi.lk.lkSpecs.{beSyntacticMultisetEqual, beMultisetEqual}
-import org.specs2.mutable._
-import org.junit.runner.RunWith
-import org.specs2.runner.JUnitRunner
-import scala.xml._
-import at.logic.parsing.language.xml.XMLParser._
-import at.logic.parsing.readers.XMLReaders._
-import at.logic.language.hol._
-import at.logic.language.hol.Definitions._
-import at.logic.language.hol.ImplicitConverters._
-import at.logic.language.hol.logicSymbols.ConstantStringSymbol
-import at.logic.language.lambda.typedLambdaCalculus._
-import at.logic.language.lambda.types.ImplicitConverters._
-import at.logic.language.lambda.types.Definitions._
-import at.logic.language.lambda.symbols.VariableStringSymbol
-import at.logic.language.lambda.symbols.ImplicitConverters._
-import at.logic.calculi.lk.propositionalRules._
-import at.logic.calculi.lk.base._
-import at.logic.calculi.occurrences.factory
-import at.logic.calculi.lk.base.types.FSequent
-import java.io.{FileReader, FileInputStream, InputStreamReader}
+import java.io.{FileInputStream, InputStream, InputStreamReader}
+import java.io.ByteArrayInputStream
 import java.io.File.separator
 import java.util.zip.GZIPInputStream
-import org.specs2.matcher.Matcher
-import org.specs2.matcher.Expectable
+
+import scala.io.{BufferedSource, Source}
+import scala.xml.SAXParseException
+
+import org.junit.runner.RunWith
+import org.specs2.matcher.{Expectable, Matcher}
+import org.specs2.mutable.SpecificationWithJUnit
+import org.specs2.runner.JUnitRunner
+import org.xml.sax.ErrorHandler
 import org.xml.sax.helpers.XMLReaderFactory
+
 import com.sun.org.apache.xml.internal.resolver.CatalogManager
 import com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver
-import org.xml.sax.ErrorHandler
 
-//code here moved to bottom for maximum JUnit compatiblity
+import at.logic.calculi.lk.base.Sequent
+import at.logic.calculi.lk.base.types.FSequent
+import at.logic.calculi.lk.lkSpecs.beSyntacticMultisetEqual
+import at.logic.calculi.lk.propositionalRules.Axiom
+import at.logic.calculi.occurrences.factory
+import at.logic.language.hol.{AllVar, And, Atom, ExVar, HOLApp, HOLAppFormula, HOLConst, HOLFormula, HOLVar, Imp}
+import at.logic.language.hol.{Neg, Or}
+import at.logic.language.hol.ImplicitConverters.listLambdaToListHOL
+import at.logic.language.hol.logicSymbols.ConstantStringSymbol
+import at.logic.language.lambda.symbols.ImplicitConverters.stringToVariableSymbol
+import at.logic.language.lambda.symbols.VariableStringSymbol
+import at.logic.language.lambda.typedLambdaCalculus.{Abs, AbsN, App, AppN}
+import at.logic.language.lambda.types.Definitions.{i, o}
+import at.logic.language.lambda.types.ImplicitConverters.fromString
+import at.logic.parsing.language.xml.XMLParser.{XMLFormulaParser, XMLProofDatabaseParser, XMLProofParser, XMLSetTermParser, XMLTermParser, XMLUtils, XMLVariableListParser}
+import at.logic.parsing.readers.XMLReaders.{NodeReader, XMLReader}
+
+//code here moved to bottom for maximum JUnit compatibility
 @RunWith(classOf[JUnitRunner])
 class XMLParserTest extends SpecificationWithJUnit {
 
@@ -51,10 +56,8 @@ class XMLParserTest extends SpecificationWithJUnit {
         )
     }
     "parse correctly a constant c from a StringReader" in {
-      (new XMLReader(
-        new java.io.StringReader("<constant symbol=\"c\"/>")) with XMLTermParser).getTerm() must beEqualTo(
-          HOLConst(new ConstantStringSymbol("c"), "i")
-        )
+      (new XMLReader(new BufferedSource(new ByteArrayInputStream("<constant symbol=\"c\"/>".getBytes("UTF8"))).reader) with XMLTermParser).getTerm() must beEqualTo (
+          HOLConst(new ConstantStringSymbol("c"), "i"))
     }
     "parse correctly a term g(c)" in {
       (new NodeReader(<function symbol="g">
@@ -429,7 +432,7 @@ class XMLParserTest extends SpecificationWithJUnit {
                     Sequent(Nil, pc("B")::fo2occ(Or(pcf("A"), pcf("C")))::Nil))
     }
     "parse correctly a proof with some permutations, an andr, and an orr1 rule from a file" in {
-      val proofs = (new XMLReader(new FileReader("target" + separator + "test-classes" + separator + "xml" + separator + "test3.xml")) with XMLProofDatabaseParser).getProofDatabase().proofs
+      val proofs =  (new XMLReader(Source.fromURL(getClass.getResource("/xml/test3.xml")).reader) with XMLProofDatabaseParser).getProofDatabase().proofs
       proofs.size must beEqualTo(1)
       proofs.head._2.root must beSyntacticMultisetEqual(
         Sequent(Nil, pc("A")::pc("C")::pc("F")::
@@ -437,15 +440,14 @@ class XMLParserTest extends SpecificationWithJUnit {
                      fo2occ(Or(pcf("D"), pcf("G")))::Nil))
     }
     "parse correctly a proof with two orr1 rules and two permr rules from a file" in {
-      val proofs = (new XMLReader(new FileReader("target" + separator + "test-classes" + separator + "xml" + separator + "test2.xml")) with XMLProofDatabaseParser).getProofDatabase().proofs
+      val proofs =  (new XMLReader(Source.fromURL(getClass.getResource("/xml/test2.xml")).reader) with XMLProofDatabaseParser).getProofDatabase().proofs
       proofs.size must beEqualTo(1)
       proofs.head._2.root must beSyntacticMultisetEqual(
                         Sequent(Nil, fo2occ(Or(pcf("A"), pcf("C")))::
                         fo2occ(Or(pcf("B"), pcf("D")))::Nil))
     }
     "parse correctly an involved proof from a file" in {
-      val proofs = (new XMLReader(new FileReader("target" + separator + "test-classes" + separator + "xml" + separator + "test1.xml")) with XMLProofDatabaseParser).getProofDatabase().proofs
-      //val proofs = (new XMLReader(io.Source.fromInputStream(getClass.getResourceAsStream("test1.xml")).reader) with XMLProofDatabaseParser).getProofDatabase().proofs
+      val proofs =  (new XMLReader(Source.fromURL(getClass.getResource("/xml/test1.xml")).reader) with XMLProofDatabaseParser).getProofDatabase().proofs
       val X = HOLVar( new VariableStringSymbol( "X" ), i -> o )
       val t = HOLConst( new ConstantStringSymbol( "t" ), i)
       val s = HOLConst( new ConstantStringSymbol( "s" ), i)
@@ -468,21 +470,20 @@ class XMLParserTest extends SpecificationWithJUnit {
     }
     "parse correctly a proof with definitions from a gzipped file" in {
       val proofdb = (new XMLReader(new InputStreamReader(new GZIPInputStream(new FileInputStream("target" + separator + "test-classes" + separator + "xml" + separator + "prime1-0.xml.gz")))) with XMLProofDatabaseParser).getProofDatabase()
-
       proofdb.Definitions.size must beEqualTo(21)
     }
     "validate and detect bogus XML document using local DTD" in {
-      val reader = XMLReaderFactory.createXMLReader();
+      val reader = XMLReaderFactory.createXMLReader()
       reader.setEntityResolver(new CatalogResolver(new CatalogManager()))
-      reader.setFeature("http://xml.org/sax/features/validation", true);
-      reader.setErrorHandler(new DemoErrorHandler());
+      reader.setFeature("http://xml.org/sax/features/validation", true)
+      reader.setErrorHandler(new DemoErrorHandler())
       reader.parse("target" + separator + "test-classes" + separator + "xml" + separator + "bogus.xml") must throwA[SAXParseException]
     }
     "validate XML document using local DTD" in {
-      val reader = XMLReaderFactory.createXMLReader();
+      val reader = XMLReaderFactory.createXMLReader()
       reader.setEntityResolver(new CatalogResolver(new CatalogManager()))
-      reader.setFeature("http://xml.org/sax/features/validation", true);
-      reader.setErrorHandler(new DemoErrorHandler());
+      reader.setFeature("http://xml.org/sax/features/validation", true)
+      reader.setErrorHandler(new DemoErrorHandler())
       reader.parse("target" + separator + "test-classes" + separator + "xml" + separator + "test1.xml") must not (throwA[SAXParseException])
     }    
   }

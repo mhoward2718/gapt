@@ -4,31 +4,19 @@
 
 package at.logic.parsing.readers
 
-import scala.xml.Elem
-import scala.xml.Node
-import scala.xml.TopScope
-import scala.xml.XML
+import scala.xml.{Elem, Node}
 import scala.xml.factory.XMLLoader
-import org.xml.sax.InputSource
-import com.sun.org.apache.xml.internal.resolver.CatalogManager
-import com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver
+
 import at.logic.parsing.language.xml.XMLParser.XMLNodeParser
-import javax.xml.parsers.SAXParser
-import javax.xml.parsers.SAXParserFactory
-import org.xml.sax.helpers.XMLReaderFactory
+import javax.xml.parsers.{SAXParser, SAXParserFactory}
 
 object XMLReaders {
   abstract class NodeReader(n: Node) extends XMLNodeParser {
     def getInput(): Node = n
   }
-
-  abstract class XMLReader(r: java.io.Reader) extends XMLNodeParser {
+  abstract class XMLReader(r: java.io.InputStreamReader) extends XMLNodeParser {
     val reader = OfflineXMLWithoutCatalog.parser.getXMLReader()
-    def getInput(): Node = {
-
-
-      scala.xml.Utility.trim(OfflineXMLWithoutCatalog.load(r))
-    }
+    def getInput(): Node = scala.xml.Utility.trim(OfflineXMLWithoutCatalog.load(r))
   }
 }
 
