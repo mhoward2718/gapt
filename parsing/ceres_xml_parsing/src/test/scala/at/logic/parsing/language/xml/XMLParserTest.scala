@@ -29,11 +29,12 @@ import java.io.File.separator
 import java.util.zip.GZIPInputStream
 import org.specs2.matcher.Matcher
 import org.specs2.matcher.Expectable
+import org.xml.sax.helpers.XMLReaderFactory
+import com.sun.org.apache.xml.internal.resolver.CatalogManager
+import com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver
+import org.xml.sax.ErrorHandler
 
-case class beDeeplyEqual[T](a: Array[T]) extends Matcher[Array[T]]() {
-  def apply[S <: Array[T]](v: Expectable[S]) = result( v.value.deep.equals(a.deep), "successful deepEquals", v.value.deep.toString + " not deepEquals " + a.deep.toString,v )
-}
-
+//code here moved to bottom for maximum JUnit compatiblity
 @RunWith(classOf[JUnitRunner])
 class XMLParserTest extends SpecificationWithJUnit {
 
@@ -444,6 +445,7 @@ class XMLParserTest extends SpecificationWithJUnit {
     }
     "parse correctly an involved proof from a file" in {
       val proofs = (new XMLReader(new FileReader("target" + separator + "test-classes" + separator + "xml" + separator + "test1.xml")) with XMLProofDatabaseParser).getProofDatabase().proofs
+      //val proofs = (new XMLReader(io.Source.fromInputStream(getClass.getResourceAsStream("test1.xml")).reader) with XMLProofDatabaseParser).getProofDatabase().proofs
       val X = HOLVar( new VariableStringSymbol( "X" ), i -> o )
       val t = HOLConst( new ConstantStringSymbol( "t" ), i)
       val s = HOLConst( new ConstantStringSymbol( "s" ), i)
@@ -469,5 +471,29 @@ class XMLParserTest extends SpecificationWithJUnit {
 
       proofdb.Definitions.size must beEqualTo(21)
     }
+    "validate and detect bogus XML document using local DTD" in {
+      val reader = XMLReaderFactory.createXMLReader();
+      reader.setEntityResolver(new CatalogResolver(new CatalogManager()))
+      reader.setFeature("http://xml.org/sax/features/validation", true);
+      reader.setErrorHandler(new DemoErrorHandler());
+      reader.parse("target" + separator + "test-classes" + separator + "xml" + separator + "bogus.xml") must throwA[SAXParseException]
+    }
+    "validate XML document using local DTD" in {
+      val reader = XMLReaderFactory.createXMLReader();
+      reader.setEntityResolver(new CatalogResolver(new CatalogManager()))
+      reader.setFeature("http://xml.org/sax/features/validation", true);
+      reader.setErrorHandler(new DemoErrorHandler());
+      reader.parse("target" + separator + "test-classes" + separator + "xml" + separator + "test1.xml") must not (throwA[SAXParseException])
+    }    
   }
+}
+
+case class beDeeplyEqual[T](a: Array[T]) extends Matcher[Array[T]]() {
+  def apply[S <: Array[T]](v: Expectable[S]) = result( v.value.deep.equals(a.deep), "successful deepEquals", v.value.deep.toString + " not deepEquals " + a.deep.toString,v )
+}
+
+class DemoErrorHandler extends ErrorHandler {
+  override def warning(ex: SAXParseException): Unit = { }
+  override def error(ex: SAXParseException): Unit = { println("Error", ex); throw (ex)}
+  override def fatalError(ex: SAXParseException): Unit = println("Fatal Error", ex)
 }
